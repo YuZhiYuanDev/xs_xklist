@@ -4,6 +4,7 @@
 Usage:
     python -m course_selector
     python -m course_selector --login
+    python -m course_selector --snatch "课程名称" --time "2025-01-01 12:00:00"
     python -m course_selector --config /path/to/config.json
     python -m course_selector --help
 """
@@ -11,8 +12,9 @@ Usage:
 import argparse
 import sys
 import logging
+from datetime import datetime
 
-from .core import CourseSelector
+from .core import CourseSelector, CourseSnatcher
 from .config import ConfigManager, CookieManager
 from .auth import browser_login
 from .utils.logger import setup_logging, get_logger
@@ -45,6 +47,30 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=300,
         help="登录超时时间（秒），默认300秒"
+    )
+    parser.add_argument(
+        "--snatch", "-s",
+        type=str,
+        default=None,
+        help="快速抢课模式，指定课程关键词"
+    )
+    parser.add_argument(
+        "--time",
+        type=str,
+        default=None,
+        help="抢课开始时间，格式: 'YYYY-MM-DD HH:MM:SS'"
+    )
+    parser.add_argument(
+        "--advance",
+        type=float,
+        default=15.0,
+        help="提前多少秒开始检测（默认15秒）"
+    )
+    parser.add_argument(
+        "--max-attempts",
+        type=int,
+        default=1000,
+        help="最大尝试次数（默认1000次）"
     )
     parser.add_argument(
         "--verbose", "-v",
@@ -118,7 +144,55 @@ def main() -> int:
     # 创建选择器
     selector = CourseSelector(config.cookies)
 
-    # 获取并显示课程列表
+    # 抢课模式
+    if args.snatch:
+        if not args.time:
+            print("错误: 抢课模式需要指定 --time 参数")
+            print("示例: --snatch \"数学\" --time \"2025-01-15 12:00:00\"")
+            return 1
+
+        try:
+            start_time = datetime.strptime(args.time, "%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            print(f"错误: 时间格式不正确，应为 'YYYY-MM-DD HH:MM:SS'")
+            return 1
+
+        print("\n" + "=" * 80)
+        print("快速抢课模式")
+        print("=" * 80)
+        print(f"目标课程: {args.snatch}")
+        print(f"开始时间: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"提前检测: {args.advance} 秒")
+        print(f"最大尝试: {args.max_attempts} 次")
+        print("=" * 80)
+        print()
+
+        # 创建抢课器
+        snatcher = CourseSnatcher(selector)
+
+        # 开始抢课
+        result = snatcher.snatch_course(
+            course_keyword=args.snatch,
+            start_time=start_time,
+            advance_seconds=args.advance,
+            max_attempts=args.max_attempts
+        )
+
+        # 显示结果
+        print("\n" + "=" * 80)
+        print("抢课结果")
+        print("=" * 80)
+        if result.success:
+            print(f"[成功] {result.course_name}")
+        else:
+            print(f"[失败] {result.message}")
+        print(f"尝试次数: {result.attempt_count}")
+        print(f"耗时: {result.time_used:.2f} 秒")
+        print("=" * 80)
+
+        return 0 if result.success else 1
+
+    # 普通模式：获取并显示课程列表
     selector.display_courses()
 
     # 自动报名
