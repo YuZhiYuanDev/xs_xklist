@@ -171,8 +171,12 @@ class CourseSelector:
                     message=f"HTTP错误: {response.status_code}"
                 )
 
-            # 检查结果
-            status = self.parser.check_enrollment_result(response.text, course_id)
+            # 检查结果（传递课程名称进行更精确的验证）
+            status = self.parser.check_enrollment_result(
+                response.text, 
+                course_id,
+                course.name
+            )
 
             # 更新表单字段
             self._form_fields = self.parser.parse_form_fields(response.text)

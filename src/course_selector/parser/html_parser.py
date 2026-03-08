@@ -25,12 +25,6 @@ class HtmlParser:
     # 报名按钮的正则模式（ASP.NET __doPostBack）
     ENROLL_BUTTON_PATTERN = re.compile(r"__doPostBack\('([^']+)',?'([^']*)'\)")
 
-    # 成功标志
-    SUCCESS_MARKERS = ['报名成功', '选课成功', '已选', '选课成功！']
-
-    # 失败标志
-    FAILURE_MARKERS = ['报名失败', '选课失败', '已满', '容量不足', '选课失败！']
-
     def __init__(self) -> None:
         """初始化HTML解析器"""
         self.logger = get_logger(__name__)
@@ -95,7 +89,8 @@ class HtmlParser:
     def check_enrollment_result(
         self,
         html: str,
-        course_id: str
+        course_id: str,
+        course_name: str = ""
     ) -> EnrollmentStatus:
         """
         检查报名结果
@@ -103,24 +98,53 @@ class HtmlParser:
         Args:
             html: 响应HTML
             course_id: 课程ID
+            course_name: 课程名称（用于验证）
 
         Returns:
             报名状态枚举值
         """
-        # 检查成功标志
-        for marker in self.SUCCESS_MARKERS:
-            if marker in html:
-                self.logger.info(f"课程 {course_id} 报名成功: {marker}")
-                return EnrollmentStatus.SUCCESS
+        # 检查已选课程列表
+        enrolled_courses = self.parse_enrolled_courses(html)
+        
+        # 如果提供了课程名称，检查是否在已选列表中
+        if course_name:
+            for enrolled in enrolled_courses:
+                # 检查课程名称是否匹配（支持部分匹配）
+                if course_name in enrolled or enrolled in course_name:
+                    self.logger.info(f"课程 {course_id} 报名成功: 已在已选列表中找到 '{enrolled}'")
+                    return EnrollmentStatus.SUCCESS
 
-        # 检查失败标志
-        for marker in self.FAILURE_MARKERS:
-            if marker in html:
-                self.logger.warning(f"课程 {course_id} 报名失败: {marker}")
-                return EnrollmentStatus.FAILED
+        # 未在已选列表中找到
+        self.logger.warning(f"课程 {course_id} 报名失败: 未在已选列表中找到")
+        return EnrollmentStatus.FAILED
 
-        self.logger.warning(f"课程 {course_id} 报名结果未知")
-        return EnrollmentStatus.UNKNOWN
+    def parse_enrolled_courses(self, html: str) -> list[str]:
+        """
+        解析已选课程列表
+
+        Args:
+            html: HTML内容
+
+        Returns:
+            已选课程名称列表
+        """
+        soup = BeautifulSoup(html, 'html.parser')
+        enrolled_courses = []
+
+        # 查找DataList1控件（已选课程列表）
+        datalist = soup.find('span', id='ctl00_ContentPlaceHolder1_DataList1')
+        if datalist:
+            # 查找所有Label控件
+            labels = datalist.find_all('span', id=re.compile(r'ctl00_ContentPlaceHolder1_DataList1_ctl\d+_Label1'))
+            for label in labels:
+                course_text = label.get_text().strip()
+                if course_text:
+                    enrolled_courses.append(course_text)
+
+        if enrolled_courses:
+            self.logger.info(f"找到 {len(enrolled_courses)} 门已选课程")
+        
+        return enrolled_courses
 
     def parse_enroll_buttons(self, html: str) -> dict[str, tuple[str, str]]:
         """
