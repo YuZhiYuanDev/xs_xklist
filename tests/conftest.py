@@ -11,7 +11,7 @@ from course_selector.core.models import Course, EnrollmentStatus
 @pytest.fixture
 def real_test_data():
     """加载真实测试数据"""
-    data_file = Path(__file__).parent.parent / 'test_data.json'
+    data_file = Path(__file__).parent / 'test_data.json'
     if data_file.exists():
         with open(data_file, 'r', encoding='utf-8') as f:
             return json.load(f)
@@ -21,7 +21,7 @@ def real_test_data():
 @pytest.fixture
 def real_html_data():
     """加载真实HTML响应数据"""
-    data_file = Path(__file__).parent.parent / 'test_html_data.json'
+    data_file = Path(__file__).parent / 'test_html_data.json'
     if data_file.exists():
         with open(data_file, 'r', encoding='utf-8') as f:
             return json.load(f)

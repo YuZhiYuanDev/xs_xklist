@@ -142,7 +142,21 @@ pip install -r requirements-dev.txt
 ### 运行测试
 
 ```bash
+# 运行所有测试
 pytest
+
+# 运行测试并显示覆盖率
+pytest --cov=src/course_selector --cov-report=term-missing
+```
+
+### 更新测试数据
+
+测试使用真实的服务器数据。如果需要更新测试数据：
+
+```bash
+# 确保config.json中有有效的cookie
+python tests/fetch_test_data.py    # 获取课程数据
+python tests/fetch_html_data.py    # 获取HTML响应数据
 ```
 
 ### 代码格式化
