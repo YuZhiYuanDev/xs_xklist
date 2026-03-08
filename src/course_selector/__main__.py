@@ -3,6 +3,7 @@
 
 Usage:
     python -m course_selector
+    python -m course_selector --login
     python -m course_selector --config /path/to/config.json
     python -m course_selector --help
 """
@@ -13,6 +14,7 @@ import logging
 
 from .core import CourseSelector
 from .config import ConfigManager, CookieManager
+from .auth import browser_login
 from .utils.logger import setup_logging, get_logger
 
 
@@ -32,6 +34,17 @@ def parse_args() -> argparse.Namespace:
         type=str,
         default=None,
         help="配置文件路径 (默认: config.json)"
+    )
+    parser.add_argument(
+        "--login", "-l",
+        action="store_true",
+        help="通过浏览器登录获取Cookie"
+    )
+    parser.add_argument(
+        "--timeout", "-t",
+        type=int,
+        default=300,
+        help="登录超时时间（秒），默认300秒"
     )
     parser.add_argument(
         "--verbose", "-v",
@@ -68,21 +81,35 @@ def main() -> int:
         cookie_manager = CookieManager()
         config.cookies = cookie_manager.load()
 
-    # 如果没有Cookie，提示用户输入
-    if not config.cookies:
-        print("请输入Cookie (从浏览器开发者工具中复制):")
-        config.cookies = input("Cookie: ").strip()
+    # 如果指定了--login参数或没有Cookie，启动浏览器登录
+    if args.login or not config.cookies:
+        print("\n正在启动浏览器登录...")
+        print("提示：请在弹出的浏览器中完成登录操作")
+        print(f"超时时间: {args.timeout}秒\n")
 
-        print("\n请输入要报名的课程名称 (多个课程用逗号分隔,直接回车跳过):")
-        course_input = input("课程名称: ").strip()
-        if course_input:
-            config.target_courses = [name.strip() for name in course_input.split(',') if name.strip()]
+        result = browser_login(timeout=args.timeout)
 
-        # 保存Cookie
-        if config.cookies:
+        if result.success:
+            config.cookies = result.cookies
+            # 保存Cookie
             cookie_manager = CookieManager()
-            cookie_manager.save(config.cookies)
-            print("Cookie已保存到 cookies.txt 文件")
+            cookie_manager.save(result.cookies)
+            print(f"\n登录成功！Cookie已保存到 cookies.txt 文件")
+            print(f"登录耗时: {result.login_time:.1f}秒\n")
+        else:
+            print(f"\n登录失败: {result.message}")
+            if result.error_code:
+                print(f"错误码: {result.error_code}")
+
+            # 如果是浏览器启动失败，提示手动输入
+            if result.error_code == "BROWSER_INIT_FAILED":
+                print("\n请手动输入Cookie (从浏览器开发者工具中复制):")
+                config.cookies = input("Cookie: ").strip()
+                if config.cookies:
+                    cookie_manager.save(config.cookies)
+                    print("Cookie已保存到 cookies.txt 文件")
+            else:
+                return 1
 
     if not config.cookies:
         logger.error("Cookie不能为空!")
