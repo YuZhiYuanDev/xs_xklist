@@ -1,5 +1,5 @@
 """
-测试数据模型
+测试数据模型 - 基于真实数据
 """
 
 import pytest
@@ -15,17 +15,21 @@ class TestCourse:
     """测试Course类"""
 
     def test_course_creation(self, sample_course_data):
-        """测试课程创建"""
+        """测试课程创建 - 使用真实数据"""
         course = Course(**sample_course_data)
-
-        assert course.id == '12345'
-        assert course.name == '高等数学'
-        assert course.category == '必修课'
-        assert course.teacher == '张老师'
-        assert course.credit == '4'
+        
+        # 验证真实数据的字段
+        assert course.id == '62065'
+        assert course.name == '高中数学竞赛辅导'
+        assert course.category == '知识拓展'
+        assert course.teacher == '陈孝春'
+        assert course.credit == '2'
+        assert course.schedule == '四8,四9'
+        assert course.enroll_event_target == 'ctl00$ContentPlaceHolder1$GridView1$ctl02$lk_delpxbq'
 
     def test_course_has_capacity_true(self, sample_course):
         """测试课程有剩余容量"""
+        # 真实数据: remaining='32'
         assert sample_course.has_capacity() is True
 
     def test_course_has_capacity_false(self):
@@ -49,8 +53,10 @@ class TestCourse:
     def test_course_str(self, sample_course):
         """测试课程字符串表示"""
         course_str = str(sample_course)
-        assert '高等数学' in course_str
-        assert '12345' in course_str
+        # 使用真实数据的课程名称
+        assert '高中数学竞赛辅导' in course_str
+        assert '62065' in course_str
+        assert '陈孝春' in course_str
 
 
 class TestEnrollmentResult:
@@ -59,14 +65,14 @@ class TestEnrollmentResult:
     def test_enrollment_result_creation(self):
         """测试报名结果创建"""
         result = EnrollmentResult(
-            course_id='12345',
-            course_name='高等数学',
+            course_id='62065',
+            course_name='高中数学竞赛辅导',
             status=EnrollmentStatus.SUCCESS,
             message='报名成功'
         )
 
-        assert result.course_id == '12345'
-        assert result.course_name == '高等数学'
+        assert result.course_id == '62065'
+        assert result.course_name == '高中数学竞赛辅导'
         assert result.status == EnrollmentStatus.SUCCESS
         assert result.message == '报名成功'
         assert result.timestamp is not None
@@ -74,8 +80,8 @@ class TestEnrollmentResult:
     def test_is_success_true(self):
         """测试报名成功判断"""
         result = EnrollmentResult(
-            course_id='123',
-            course_name='测试',
+            course_id='62065',
+            course_name='高中数学竞赛辅导',
             status=EnrollmentStatus.SUCCESS
         )
         assert result.is_success() is True
@@ -83,8 +89,8 @@ class TestEnrollmentResult:
     def test_is_success_false(self):
         """测试报名失败判断"""
         result = EnrollmentResult(
-            course_id='123',
-            course_name='测试',
+            course_id='62065',
+            course_name='高中数学竞赛辅导',
             status=EnrollmentStatus.FAILED
         )
         assert result.is_success() is False
@@ -96,9 +102,9 @@ class TestEnrollmentSummary:
     def test_summary_creation(self):
         """测试报名汇总创建"""
         summary = EnrollmentSummary(
-            success=['课程1'],
-            failed=['课程2'],
-            not_found=['课程3']
+            success=['高中数学竞赛辅导'],
+            failed=['数学文化漫谈'],
+            not_found=['物理实验']
         )
 
         assert len(summary.success) == 1
@@ -108,9 +114,9 @@ class TestEnrollmentSummary:
     def test_summary_total(self):
         """测试总数计算"""
         summary = EnrollmentSummary(
-            success=['课程1', '课程2'],
-            failed=['课程3'],
-            not_found=['课程4']
+            success=['高中数学竞赛辅导', '数学文化漫谈'],
+            failed=['新概念英语的欣赏'],
+            not_found=['物理实验']
         )
 
         assert summary.total == 4
@@ -118,9 +124,9 @@ class TestEnrollmentSummary:
     def test_summary_str(self):
         """测试汇总字符串表示"""
         summary = EnrollmentSummary(
-            success=['课程1'],
-            failed=['课程2'],
-            not_found=['课程3']
+            success=['高中数学竞赛辅导'],
+            failed=['数学文化漫谈'],
+            not_found=['物理实验']
         )
 
         summary_str = str(summary)

@@ -23,7 +23,7 @@ class TestConfigManager:
             config = manager.load()
 
             assert config.cookies == 'test_cookie_string'
-            assert len(config.target_courses) == 2
+            assert len(config.target_courses) == 1  # 真实数据只有1个目标课程
             assert config.semester == '2025/2026下'
 
         finally:

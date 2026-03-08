@@ -1,26 +1,71 @@
 """
-Pytest配置和公共fixtures
+Pytest配置和公共fixtures - 基于真实数据
 """
 
 import pytest
+import json
+from pathlib import Path
 from course_selector.core.models import Course, EnrollmentStatus
 
 
 @pytest.fixture
-def sample_course_data():
-    """示例课程数据"""
+def real_test_data():
+    """加载真实测试数据"""
+    data_file = Path(__file__).parent.parent / 'test_data.json'
+    if data_file.exists():
+        with open(data_file, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return None
+
+
+@pytest.fixture
+def real_html_data():
+    """加载真实HTML响应数据"""
+    data_file = Path(__file__).parent.parent / 'test_html_data.json'
+    if data_file.exists():
+        with open(data_file, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return None
+
+
+@pytest.fixture
+def sample_html_response(real_html_data):
+    """真实HTML响应"""
+    if real_html_data and real_html_data.get('course_list_html'):
+        return real_html_data['course_list_html']
+    # 备用：返回一个简单的HTML结构
+    return """
+    <html>
+    <body>
+        <form>
+            <input type="hidden" name="__VIEWSTATE" value="test_viewstate" />
+            <input type="hidden" name="__EVENTVALIDATION" value="test_validation" />
+        </form>
+    </body>
+    </html>
+    """
+
+
+@pytest.fixture
+def sample_course_data(real_test_data):
+    """真实课程数据"""
+    if real_test_data and real_test_data.get('courses'):
+        return real_test_data['courses'][0]
+    # 备用数据
     return {
-        'id': '12345',
-        'name': '高等数学',
-        'category': '必修课',
-        'class_name': '数学1班',
-        'teacher': '张老师',
-        'credit': '4',
-        'schedule': '周一 1-2节',
-        'capacity': '50',
-        'enrolled': '45',
-        'remaining': '5',
-        'onclick': 'view_kc(12345)'
+        'id': '62065',
+        'name': '高中数学竞赛辅导',
+        'category': '知识拓展',
+        'class_name': '',
+        'teacher': '陈孝春',
+        'credit': '2',
+        'schedule': '四8,四9',
+        'capacity': '2',
+        'enrolled': '34',
+        'remaining': '32',
+        'onclick': 'view_kc(62065)',
+        'enroll_event_target': 'ctl00$ContentPlaceHolder1$GridView1$ctl02$lk_delpxbq',
+        'enroll_event_argument': ''
     }
 
 
@@ -31,32 +76,50 @@ def sample_course(sample_course_data):
 
 
 @pytest.fixture
-def sample_html_response():
-    """示例HTML响应"""
-    return """
-    <html>
-    <body>
-        <form>
-            <input type="hidden" name="__VIEWSTATE" value="test_viewstate" />
-            <input type="hidden" name="__EVENTVALIDATION" value="test_validation" />
-        </form>
-        <table>
-            <tr>
-                <td>必修课</td>
-                <td><a onclick="view_kc(12345)">高等数学</a></td>
-                <td>数学1班</td>
-                <td>张老师</td>
-                <td>4</td>
-                <td>周一 1-2节</td>
-                <td>50</td>
-                <td>45</td>
-                <td>5</td>
-                <td>操作</td>
-            </tr>
-        </table>
-    </body>
-    </html>
-    """
+def sample_courses(real_test_data):
+    """多个课程对象列表"""
+    if real_test_data and real_test_data.get('courses'):
+        return [Course(**c) for c in real_test_data['courses']]
+    # 备用数据
+    return [
+        Course(
+            id='62065',
+            name='高中数学竞赛辅导',
+            category='知识拓展',
+            teacher='陈孝春',
+            credit='2',
+            schedule='四8,四9',
+            capacity='2',
+            enrolled='34',
+            remaining='32',
+            enroll_event_target='ctl00$ContentPlaceHolder1$GridView1$ctl02$lk_delpxbq'
+        ),
+        Course(
+            id='1277277',
+            name='数学文化漫谈',
+            category='知识拓展',
+            teacher='朱俊波',
+            credit='2',
+            schedule='四8,四9',
+            capacity='2',
+            enrolled='34',
+            remaining='27',
+            enroll_event_target='ctl00$ContentPlaceHolder1$GridView1$ctl03$lk_delpxbq'
+        )
+    ]
+
+
+@pytest.fixture
+def sample_form_fields(real_test_data):
+    """真实表单字段"""
+    if real_test_data and real_test_data.get('form_fields'):
+        return real_test_data['form_fields']
+    # 备用数据
+    return {
+        '__VIEWSTATE': '/wEPDwUKMTE0OTE4Nzc2Mw8WBB4CWE4FCTIwMjUvMjAyNh4CWFEFA+S4ixYCZg9kFgICAw9kFgYCAQ8PFgQeBFRleHQFDOivhOS7t+ezu+e7nx4LTmF2aWdhdGVVcmwFpwFodHRwczovL3BqZ2xwdC56amVkdS5nb3YuY24vaW50ZXJmYyFiYWNrcGouYWN0aW9uP2xvZ2luX25hbWU9MzMwMjEyMjAwOTA1MDM0NDE2JmNoZWNrY29kZT1jZjZlY2FmNGIxMDE3NTJiZWQxYWZkMDFkMWEyMjI1NCZndWlkX3hrPUJDOUQxRjAxLUU5RDgtNDJCRS1BQTU4LTk2OTlBREVGNDhBQmRkAgIPDxYCHwIFJeWtpuW5tO+8mjIwMjUvMjAyNiAmbmJzcDvlrabmnJ/vvJrkuItkZAIDD2QWCgIDDxBkDxYDZgIBAgIWAxAFDDIwMjUvMjAyNuS4iwUMMjAyNS8yMDI25LiLZxAFDDIwMjYvMjAyN+S4igUMMjAyNi8yMDI35LiKZxAFDS0t6K+36YCJ5oupLS1lZ2RkAgUPEA8WBh4NRGF0YVRleHRGaWVsZAUGS0NMWFNNHg5EYXRhVmFsdWVGaWVsZAUFS0NMWE0eC18hRGF0YUJvdW5kZ2QQFQgKLS3lhajpg6gtLQblv4Xkv64M55+l6K+G5ouT5bGVDOiBjOS4muaKgOiDvQzlhbTotqPnibnplb8M56S+5Lya5a6e6Le1D+aWsOmrmOS4gOW/heS/rg/mlrDpq5jkuIDpgInkv64VCAABMQEyATMBNAE1AjExAjEyFCsDCGdnZ2dnZ2dnZGQCBw8QDxYGHwQFBldFRUtTTR8FBQVXRUVLTR8GZ2QQFQYKLS3lhajpg6gtLQnmmJ/mnJ/kuIAJ5pif5pyf5LqMCeaYn+acn+S4iQnmmJ/mnJ/lm5sJ5pif5pyf5LqUFQYAATEBMgEzATQBNRQrAwZnZ2dnZ2dkZAIJDxAPFgYfBAUESkNTTR8FBQNKQ00fBmdkEBUKCi0t5YWo6YOoLS0J56ys5LiA6IqCCeesrOS6jOiKggnnrKzkuInoioIJ56ys5Zub6IqCCeesrOS6lOiKggnnrKzlha3oioIJ56ys5LiD6IqCCeesrOWFq+iKggnnrKzkuZ3oioIVCgABMQEyATMBNAE1ATYBNwE4ATkUKwMKZ2dnZ2dnZ2dnZ2RkAg0PZBYCZg9kFgYCAQ88KwAJAQAPFgQeCERhdGFLZXlzFgAeC18hSXRlbUNvdW50AgJkFgRmD2QWAgIBDw8WAh8CBTZb5b2x6KeG6LWP5p6Q5LiO5Lyg5aqS6Im66ICDIOmrmOS6jCgxLTYpXemtj+S6mueQtDHnj61kZAIBD2QWAgIBDw8WAh8CBTBb5YyW5a2m5LiO5pel5bi455Sf5rS75Lit55qE5a6J5YWoMV3orrjlu7rljY7nj61kZAIDDzwrAA0BAA8WBB8GZx8IAg5kFgJmD2QWHgIBD2QWGmYPDxYEHwIFKjIwMjUtMjAyNuWtpuW5tOesrOS6jOWtpuacn+mrmOS6jOmAieS/ruivvh4HUm93U3BhbgIOZGQCAQ8PFgQfAgUpMjAyNi0wMy0wOCAwOTowMDowMOiHszIwMjYtMDMtMDggMTY6MDA6MDAfCQIOZGQCAg8PFgQfAgUBMh8JAg5kZAIEDw8WAh8CBQznn6Xor4bmi5PlsZVkZAIFD2QWAmYPFQFBPGEgaHJlZj0iIyIgb25jbGljaz0idmlld19rYyg2MjA2NSkiPumrmOS4reaVsOWtpuernui1m+i+heWvvDwvYT5kAgYPDxYCHwIFJlvpq5jkuK3mlbDlrabnq57otZvovoXlr7xd6ZmI5a2d5pil54+tZGQCBw9kFgRmDxUCBzQwMzM0NDYBMWQCAQ8PFgIfAgUJ6ZmI5a2d5pilZGQCCA8PFgIfAgUBMmRkAgkPDxYCHwIFCeWbmzgs5ZubOWRkAgoPDxYCHwIFATJkZAILDw8WAh8CBQIzNGRkAgwPDxYCHwIFAjMyZGQCDQ9kFgICAQ8PFgQeDU9uQ2xpZW50Q2xpY2sFSmlmKGNvbmZpcm0oJ+aCqOehruiupOimgemAieaKpeivpeaVmeWtpuePreWQl++8nycpKXsgfWVsc2Uge3JldHVybiBmYWxzZTt9Hg9Db21tYW5kQXJndW1lbnQFJDFlM2NiYWVhLWFhN2QtNGE2ZS04YWFjLTdjMjU5OTJkM2UzN2RkAgIPZBYaZg8PFgQfAgUqMjAyNS0yMDI25a2m5bm056ys5LqM5a2m5pyf6auY5LqM6YCJ5L+u6K++HgdWaXNpYmxlaGRkAgEPDxYEHwIFKTIwMjYtMDMtMDggMDk6MDA6MDDoh7MyMDI2LTAzLTA4IDE2OjAwOjAwHwxoZGQCAg8PFgQfAgUBMh8MaGRkAgQPDxYCHwIFDOefpeivhuaLk+WxlWRkAgUPZBYCZg8VAT08YSBocmVmPSIjIiBvbmNsaWNrPSJ2aWV3X2tjKDEyNzcyNzcpIj7mlbDlrabmlofljJbmvKvosIg8L2E+ZAIGDw8WAh8CBSBb5pWw5a2m5paH5YyW5ryr6LCIXeacseS/iuazouePrWRkAgcPZBYEZg8VAgczODA1MTI2ATFkAgEPDxYCHwIFCeacseS/iuazomRkAggPDxYCHwIFATJkZAIJDw8WAh8CBQnlm5s4LOWbmzlkZAIKDw8WAh8CBQEyZGQCCw8PFgIfAgUCMzRkZAIMDw8WAh8CBQIyN2RkAg0PZBYCAgEPDxYEHwoFSmlmKGNvbmZpcm0oJ+aCqOehruiupOimgemAieaKpeivpeaVmeWtpuePreWQl++8nycpKXsgfWVsc2Uge3JldHVybiBmYWxzZTt9HwsFJGRjMDJmZmQyLWNmNjMtNDgyNC1hYzllLTY5MjFiN2IyOGI4N2RkAgMPZBYaZg8PFgQfAgUqMjAyNS0yMDI25a2m5bm056ys5LqM5a2m5pyf6auY5LqM6YCJ5L+u6K++HwxoZGQCAQ8PFgQfAgUpMjAyNi0wMy0wOCAwOTowMDowMOiHszIwMjYtMDMtMDggMTY6MDA6MDAfDGhkZAICDw8WBB8CBQEyHwxoZGQCBA8PFgIfAgUM55+l6K+G5ouT5bGVZGQCBQ9kFgJmDxUBQzxhIGhyZWY9IiMiIG9uY2xpY2s9InZpZXdfa2MoMTM2NzAzOSkiPuaWsOamguW/teiLseivreeahOaso+i1jzwvYT5kAgYPDxYCHwIFJlvmlrDmpoLlv7Xoi7Hor63nmoTmrKPotY9d6aG+6IyC56OK54+tZGQCBw9kFgRmDxUCBzM3OTQ1MTMBMWQCAQ8PFgIfAgUJ6aG+6IyC56OKZGQCCA8PFgIfAgUBMmRkAgkPDxYCHwIFCeWbmzgs5ZubOWRkAgoPDxYCHwIFATJkZAILDw8WAh8CBQIzNGRkAgwPDxYCHwIFAjMxZGQCDQ9kFgICAQ8PFgQfCgVKaWYoY29uZmlybSgn5oKo56Gu6K6k6KaB6YCJ5oql6K+l5pWZ5a2m54+t5ZCX77yfJykpeyB9ZWxzZSB7cmV0dXJuIGZhbHNlO30fCwUkMWQ5ZmZkOGUtZGM2YS00ZWQ0LWJjZTItYmZiZjU4ZmM2ZjBiZGQCBA9kFhpmDw8WBB8CBSoyMDI1LTIwMjblrablubTnrKzkuozlrabmnJ/pq5jkuozpgInkv67or74fDGhkZAIBDw8WBB8CBSkyMDI2LTAzLTA4IDA5OjAwOjAw6IezMjAyNi0wMy0wOCAxNjowMDowMB8MaGRkAgIPDxYEHwIFATIfDGhkZAIEDw8WAh8CBQznn6Xor4bmi5PlsZVkZAIFD2QWAmYPFQFNPGEgaHJlZj0iIyIgb25jbGljaz0idmlld19rYyg1MDAwMDAwMDQ5MzExKSI+5b2x6K+E6IyD5paH54K56K+E5LiO5YaZ5L2cMTwvYT5kAgYPDxYCHwIFKlvlvbHor4TojIPmlofngrnor4TkuI7lhpnkvZwxXeS4peWKm+e+pOePrWRkAgcPZBYEZg8VAgc0MDM5NTM3ATFkAgEPDxYCHwIFCeS4peWKm+e+pGRkAggPDxYCHwIFATJkZAIJDw8WAh8CBQnlm5s4LOWbmzlkZAIKDw8WAh8CBQEyZGQCCw8PFgIfAgUCMzRkZAIMDw8WAh8CBQIyMGRkAg0PZBYCAgEPDxYEHwoFSmlmKGNvbmZpcm0oJ+aCqOehruiupOimgemAieaKpeivpeaVmeWtpuePreWQl++8nycpKXsgfWVsc2Uge3JldHVybiBmYWxzZTt9HwsFJGQzZGUwZjY1LWVhMjEtNGZlYi1hNDJhLTE3Y2VhNTYyYWM5MWRkAgUPZBYaZg8PFgQfAgUqMjAyNS0yMDI25a2m5bm056ys5LqM5a2m5pyf6auY5LqM6YCJ5L+u6K++HwxoZGQCAQ8PFgQfAgUpMjAyNi0wMy0wOCAwOTowMDowMOiHszIwMjYtMDMtMDggMTY6MDA6MDAfDGhkZAICDw8WBB8CBQEyHwxoZGQCBA8PFgIfAgUM55+l6K+G5ouT5bGVZGQCBQ9kFgJmDxUBSjxhIGhyZWY9IiMiIG9uY2xpY2s9InZpZXdfa2MoNTAwMDAwMDA0OTMyNikiPueUn+a0u+S4reeahOeJqeeQhuefpeivhjE8L2E+ZAIGDw8WAh8CBSdb55Sf5rS75Lit55qE54mp55CG55+l6K+GMV3lvKDkuLnnhZznj61kZAIHD2QWBGYPFQINNTAwMDAwMjc1NTA5OQExZAIBDw8WAh8CBQnlvKDkuLnnhZxkZAIIDw8WAh8CBQEyZGQCCQ8PFgIfAgUJ5ZubOCzlm5s5ZGQCCg8PFgIfAgUBMmRkAgsPDxYCHwIFAjM0ZGQCDA8PFgIfAgUCMjFkZAIND2QWAgIBDw8WBB8KBUppZihjb25maXJtKCfmgqjnoa7orqTopoHpgInmiqXor6XmlZnlrabnj63lkJfvvJ8nKSl7IH1lbHNlIHtyZXR1cm4gZmFsc2U7fR8LBSRjNjQ1OTJjNC03NDAxLTQ4MjQtODVkZi0wZTU3Yzk0MTgxMjJkZAIGD2QWGmYPDxYEHwIFKjIwMjUtMjAyNuWtpuW5tOesrOS6jOWtpuacn+mrmOS6jOmAieS/ruivvh8MaGRkAgEPDxYEHwIFKTIwMjYtMDMtMDggMDk6MDA6MDDoh7MyMDI2LTAzLTA4IDE2OjAwOjAwHwxoZGQCAg8PFgQfAgUBMh8MaGRkAgQPDxYCHwIFDOefpeivhuaLk+WxlWRkAgUPZBYCZg8VAU08YSBocmVmPSIjIiBvbmNsaWNrPSJ2aWV3X2tjKDUwMDAwMDAwNDkzMzEpIj7otbDov5vljJblrabnmoTmt7HlsYLkuJbnlYwxPC9hPmQCBg8PFgIfAgUqW+i1sOi/m+WMluWtpueahOa3seWxguS4lueVjDFd5byg5Li55a6B54+tZGQCBw9kFgRmDxUCDTUwMDAwMDI3NTUwOTYBMWQCAQ8PFgIfAgUJ5byg5Li55a6BZGQCCA8PFgIfAgUBMmRkAgkPDxYCHwIFCeWbmzgs5ZubOWRkAgoPDxYCHwIFATJkZAILDw8WAh8CBQIzNGRkAgwPDxYCHwIFAjI3ZGQCDQ9kFgICAQ8PFgQfCgVKaWYoY29uZmlybSgn5oKo56Gu6K6k6KaB6YCJ5oql6K+l5pWZ5a2m54+t5ZCX77yfJykpeyB9ZWxzZSB7cmV0dXJuIGZhbHNlO30fCwUkMDAzZjYyMzgtYjI3Yy00ZWM3LWJlMmMtMzQwN2YwYWUzZGI0ZGQCBw9kFhpmDw8WBB8CBSoyMDI1LTIwMjblrablubTnrKzkuozlrabmnJ/pq5jkuozpgInkv67or74fDGhkZAIBDw8WBB8CBSkyMDI2LTAzLTA4IDA5OjAwOjAw6IezMjAyNi0wMy0wOCAxNjowMDowMB8MaGRkAgIPDxYEHwIFATIfDGhkZAIEDw8WAh8CBQznn6Xor4bmi5PlsZVkZAIFD2QWAmYPFQFTPGEgaHJlZj0iIyIgb25jbGljaz0idmlld19rYyg1MDAwMDAwMDQ5MzQ0KSI+5YyW5a2m5LiO5pel5bi455Sf5rS75Lit55qE5a6J5YWoMTwvYT5kAgYPDxYCHwIFMFvljJblrabkuI7ml6XluLjnlJ/mtLvkuK3nmoTlronlhagxXeiuuOW7uuWNjuePrWRkAgcPZBYEZg8VAgczOTM5MTU3ATFkAgEPDxYCHwIFCeiuuOW7uuWNjmRkAggPDxYCHwIFATJkZAIJDw8WAh8CBQnlm5s4LOWbmzlkZAIKDw8WAh8CBQEyZGQCCw8PFgIfAgUCMzRkZAIMDw8WAh8CBQIzMmRkAg0PZBYCAgEPDxYEHwoFSmlmKGNvbmZpcm0oJ+aCqOehruiupOimgemAieaKpeivpeaVmeWtpuePreWQl++8nycpKXsgfWVsc2Uge3JldHVybiBmYWxzZTt9HwsFJDdmNzZkOTliLTc5NDktNGI1NS04MDU3LTU1ZDUzMzQ0MzYzMmRkAggPZBYaZg8PFgQfAgUqMjAyNS0yMDI25a2m5bm056ys5LqM5a2m5pyf6auY5LqM6YCJ5L+u6K++HwxoZGQCAQ8PFgQfAgUpMjAyNi0wMy0wOCAwOTowMDowMOiHszIwMjYtMDMtMDggMTY6MDA6MDAfDGhkZAICDw8WBB8CBQEyHwxoZGQCBA8PFgIfAgUM55+l6K+G5ouT5bGVZGQCBQ9kFgJmDxUBRDxhIGhyZWY9IiMiIG9uY2xpY2s9InZpZXdfa2MoNTAwMDAwMDA0OTM1MikiPuiMtuWPtuS4reeahOWOhuWPsjE8L2E+ZAIGDw8WAh8CBSFb6Iy25Y+25Lit55qE5Y6G5Y+yMV3oi4/njonlhbDnj61kZAIHD2QWBGYPFQIHNDAyNzcwMgExZAIBDw8WAh8CBQnoi4/njonlhbBkZAIIDw8WAh8CBQEyZGQCCQ8PFgIfAgUJ5ZubOCzlm5s5ZGQCCg8PFgIfAgUBMmRkAgsPDxYCHwIFAjM0ZGQCDA8PFgIfAgUCMjVkZAIND2QWAgIBDw8WBB8KBUppZihjb25maXJtKCfmgqjnoa7orqTopoHpgInmiqXor6XmlZnlrabnj63lkJfvvJ8nKSl7IH1lbHNlIHtyZXR1cm4gZmFsc2U7fR8LBSRlNTVmNTg4Mi1jMjcxLTQyY2MtOTY4MS1hZjA1OTExOWU5MzNkZAIJD2QWGmYPDxYEHwIFKjIwMjUtMjAyNuWtpuW5tOesrOS6jOWtpuacn+mrmOS6jOmAieS/ruivvh8MaGRkAgEPDxYEHwIFKTIwMjYtMDMtMDggMDk6MDA6MDDoh7MyMDI2LTAzLTA4IDE2OjAwOjAwHwxoZGQCAg8PFgQfAgUBMh8MaGRkAgQPDxYCHwIFDOWFtOi2o+eJuemVv2RkAgUPZBYCZg8VAUs8YSBocmVmPSIjIiBvbmNsaWNrPSJ2aWV3X2tjKDUwMDAwMDAxNDQwNjIpIj7lmajkuZDlkIjlpY/pq5jkuozkuIsoMS02KTwvYT5kAgYPDxYCHwIFKFvlmajkuZDlkIjlpY8g6auY5LqMKDEtNildIOWUkOmTtuS9szHnj61kZAIHD2QWBGYPFQIHMzk1NTQ2NAExZAIBDw8WAh8CBQnllJDpk7bkvbNkZAIIDw8WAh8CBQEyZGQCCQ8PFgIfAgUJ5LiAOCzkuIA5ZGQCCg8PFgIfAgUBMmRkAgsPDxYCHwIFAjMwZGQCDA8PFgIfAgUCMTlkZAIND2QWAgIBDw8WBB8KBUppZihjb25maXJtKCfmgqjnoa7orqTopoHpgInmiqXor6XmlZnlrabnj63lkJfvvJ8nKSl7IH1lbHNlIHtyZXR1cm4gZmFsc2U7fR8LBSQxMTFkZjc4NC1jMmYwLTRmNDgtOGJjMi1jOGIyOGI4MzcyMzhkZAIKD2QWGmYPDxYEHwIFKjIwMjUtMjAyNuWtpuW5tOesrOS6jOWtpuacn+mrmOS6jOmAieS/ruivvh8MaGRkAgEPDxYEHwIFKTIwMjYtMDMtMDggMDk6MDA6MDDoh7MyMDI2LTAzLTA4IDE2OjAwOjAwHwxoZGQCAg8PFgQfAgUBMh8MaGRkAgQPDxYCHwIFDOWFtOi2o+eJuemVv2RkAgUPZBYCZg8VAU48YSBocmVmPSIjIiBvbmNsaWNrPSJ2aWV3X2tjKDUwMDAwMDAxNDQwNjQpIj7mnKjlkInku5blvLnllLHpq5jkuozkuIsoMS02KTwvYT5kAgYPDxYCHwIFK1vmnKjlkInku5blvLnllLEg6auY5LqMKDEtNildIOeroOaXreS4sDHnj61kZAIHD2QWBGYPFQINNTAwMDAwMDAwOTkzMQExZAIBDw8WAh8CBQnnq6Dml63kuLBkZAIIDw8WAh8CBQEyZGQCCQ8PFgIfAgUJ5LiAOCzkuIA5ZGQCCg8PFgIfAgUBMmRkAgsPDxYCHwIFAjMyZGQCDA8PFgIfAgUCMTJkZAIND2QWAgIBDw8WBB8KBUppZihjb25maXJtKCfmgqjnoa7orqTopoHpgInmiqXor6XmlZnlrabnj63lkJfvvJ8nKSl7IH1lbHNlIHtyZXR1cm4gZmFsc2U7fR8LBSRiN2IzMWI3OS0yMThhLTQyNjItOWQxOC0wZWIxNTFlNTg5ZjVkZAILD2QWGmYPDxYEHwIFKjIwMjUtMjAyNuWtpuW5tOesrOS6jOWtpuacn+mrmOS6jOmAieS/ruivvh8MaGRkAgEPDxYEHwIFKTIwMjYtMDMtMDggMDk6MDA6MDDoh7MyMDI2LTAzLTA4IDE2OjAwOjAwHwxoZGQCAg8PFgQfAgUBMh8MaGRkAgQPDxYCHwIFDOWFtOi2o+eJuemVv2RkAgUPZBYCZg8VAUY8YSBocmVmPSIjIiBvbmNsaWNrPSJ2aWV3X2tjKDUwMDAwMDAxNDQwNzEpIj7lm73nlLvpq5jkuozkuIsoNy0xMik8L2E+ZAIGDw8WAh8CBSNb5Zu955S7IOmrmOS6jCg3LTEyKV0g56Wd5p2w5bOwMuePrWRkAgcPZBYEZg8VAg01MDAwMDAwMzUyODE5ATFkAgEPDxYCHwIFCeelneadsOWzsGRkAggPDxYCHwIFATJkZAIJDw8WAh8CBQnkuIA2LOS4gDdkZAIKDw8WAh8CBQEyZGQCCw8PFgIfAgUCMjVkZAIMDw8WAh8CBQIxOWRkAg0PZBYCAgEPDxYEHwoFSmlmKGNvbmZpcm0oJ+aCqOehruiupOimgemAieaKpeivpeaVmeWtpuePreWQl++8nycpKXsgfWVsc2Uge3JldHVybiBmYWxzZTt9HwsFJDQyYjIyNzUwLTRkNDItNDJiNy1hOTQ0LTM4NDllYzgzNGM2OGRkAgwPZBYaZg8PFgQfAgUqMjAyNS0yMDI25a2m5bm056ys5LqM5a2m5pyf6auY5LqM6YCJ5L+u6K++HwxoZGQCAQ8PFgQfAgUpMjAyNi0wMy0wOCAwOTowMDowMOiHszIwMjYtMDMtMDggMTY6MDA6MDAfDGhkZAICDw8WBB8CBQEyHwxoZGQCBA8PFgIfAgUM5YW06Laj54m56ZW/ZGQCBQ9kFgJmDxUBTDxhIGhyZWY9IiMiIG9uY2xpY2s9InZpZXdfa2MoNTAwMDAwMDE0NDA3NCkiPuWZqOS5kOWQiOWlj+mrmOS6jOS4iyg3LTEyKTwvYT5kAgYPDxYCHwIFKVvlmajkuZDlkIjlpY8g6auY5LqMKDctMTIpXSDllJDpk7bkvbMy54+tZGQCBw9kFgRmDxUCBzM5NTU0NjQBMWQCAQ8PFgIfAgUJ5ZSQ6ZO25L2zZGQCCA8PFgIfAgUBMmRkAgkPDxYCHwIFCeS4gDYs5LiAN2RkAgoPDxYCHwIFATJkZAILDw8WAh8CBQIzMGRkAgwPDxYCHwIFAjExZGQCDQ9kFgICAQ8PFgQfCgVKaWYoY29uZmlybSgn5oKo56Gu6K6k6KaB6YCJ5oql6K+l5pWZ5a2m54+t5ZCX77yfJykpeyB9ZWxzZSB7cmV0dXJuIGZhbHNlO30fCwUkYjBmNTc5NTUtMzVhOC00ZTQ2LTk0MTctMTAxNTQ4NjQ1OGNmZGQCDQ9kFhpmDw8WBB8CBSoyMDI1LTIwMjblrablubTnrKzkuozlrabmnJ/pq5jkuozpgInkv67or74fDGhkZAIBDw8WBB8CBSkyMDI2LTAzLTA4IDA5OjAwOjAw6IezMjAyNi0wMy0wOCAxNjowMDowMB8MaGRkAgIPDxYEHwIFATIfDGhkZAIEDw8WAh8CBQzlhbTotqPnibnplb9kZAIFD2QWAmYPFQFGPGEgaHJlZj0iIyIgb25jbGljaz0idmlld19rYyg1MDAwMDAwMTQ0MDc1KSI+5ZCI5ZSx6auY5LqM5LiLKDctMTIpPC9hPmQCBg8PFgIfAgUiW+WQiOWUsSDpq5jkuowoNy0xMild6ZmI5Yas5qKFMuePrWRkAgcPZBYEZg8VAgczODA5MjkyATFkAgEPDxYCHwIFCemZiOWGrOaihWRkAggPDxYCHwIFATJkZAIJDw8WAh8CBQnkuIA2LOS4gDdkZAIKDw8WAh8CBQEyZGQCCw8PFgIfAgUCMzFkZAIMDw8WAh8CBQIyOGRkAg0PZBYCAgEPDxYEHwoFSmlmKGNvbmZpcm0oJ+aCqOehruiupOimgemAieaKpeivpeaVmeWtpuePreWQl++8nycpKXsgfWVsc2Uge3JldHVybiBmYWxzZTt9HwsFJDA3MGFmNTk1LWU1NGUtNGZhYi05YWI3LTRkN2U2OGI3ODZhYmRkAg4PZBYaZg8PFgQfAgUqMjAyNS0yMDI25a2m5bm056ys5LqM5a2m5pyf6auY5LqM6YCJ5L+u6K++HwxoZGQCAQ8PFgQfAgUpMjAyNi0wMy0wOCAwOTowMDowMOiHszIwMjYtMDMtMDggMTY6MDA6MDAfDGhkZAICDw8WBB8CBQEyHwxoZGQCBA8PFgIfAgUM5YW06Laj54m56ZW/ZGQCBQ9kFgJmDxUBTzxhIGhyZWY9IiMiIG9uY2xpY2s9InZpZXdfa2MoNTAwMDAwMDE0NDA3NikiPuacqOWQieS7luW8ueWUsemrmOS6jOS4iyg3LTEyKTwvYT5kAgYPDxYCHwIFLFvmnKjlkInku5blvLnllLEg6auY5LqMKDctMTIpXSDnq6Dml63kuLAy54+tZGQCBw9kFgRmDxUCDTUwMDAwMDAwMDk5MzEBMWQCAQ8PFgIfAgUJ56ug5pet5LiwZGQCCA8PFgIfAgUBMmRkAgkPDxYCHwIFCeS4gDYs5LiAN2RkAgoPDxYCHwIFATJkZAILDw8WAh8CBQIzMWRkAgwPDxYCHwIFAjE1ZGQCDQ9kFgICAQ8PFgQfCgVKaWYoY29uZmlybSgn5oKo56Gu6K6k6KaB6YCJ5oql6K+l5pWZ5a2m54+t5ZCX77yfJykpeyB9ZWxzZSB7cmV0dXJuIGZhbHNlO30fCwUkMDE0NTI1MDktODVlZC00YTU3LWEzOWYtMWQxZjhlZmNiZDc3ZGQCDw8PFgIfDGhkZAIFDw8WAh8MZ2RkGAEFI2N0bDAwJENvbnRlbnRQbGFjZUhvbGRlcjEkR3JpZFZpZXcxDzWrAAoBCAIBZER/HnqnWgFtq6Gay2kK7F6LFo07',
+        '__EVENTVALIDATION': '/wEWmwECvs7O5wkCrZnUhAgCrpmknwYC49HQCQLj38GmAQLssOvIDQLtsOvIDQLusOvIDQLvsOvIDQLosOvIDQLssKfLDQLssKPLDQKG1+XZCQKJuM+3BQKIuM+3BQKLuM+3BQKKuM+3BQKNuM+3BQKAmJfdDAKP970zAo73vTMCjfe9MwKM970zAov3vTMCive9MwKJ970zApj3vTMCl/e9MwL32PXeDALy7cDACwKNluDUAQKQluqCDAKO6IGjBgLZ5PiLAwK2lfiGDgKWobW3AQLtv6nfCALEuuH1CAKxpsHACwLWwODUAQK1wOqCDAK36YGjBgKC5viLAwLvv/iGDgLby7W3AQKWwanfCALtu+H1CALY3sDACwKPhuDUAQKOhuqCDALQ54GjBgKb5PiLAwK4hfiGDgKUkbW3AQKvv6nfCAKGuuH1CALX5sDACwKI/t/UAQKT/umCDAKx54GjBgL84/iLAwK5/feGDgKZibW3AQKQv6nfCALnueH1CALWzcDACwKJ9t/UAQKU9umCDAKS54GjBgLd4/iLAwK69feGDgKagbW3AQLxvqnfCALIueH1CALV1cDACwKC7N/UAQKJ7OmCDALr5oGjBgK24/iLAwLD6/eGDgKP97S3AQLKvqnfCAKhueH1CALcvsDACwL74d/UAQLi4emCDALE5oGjBgKP4/iLAwKM4feGDgKI7bS3AQKjvqnfCAL6uOH1CALbxsDACwKE2t/UAQKH2umCDAKl5oGjBgLw4viLAwK92feGDgKN5bS3AQKEvqnfCALbuOH1CAKDw/sWArLq4oMHAqvOiuAFAszo5ZsEApfl3IQBAuXN0K0JApCx0eoFAqvA5ZoHAoK7nbEHAqLL+xYCu+LigwcCsMaK4AUCrejlmwQC+OTchAEC1sXQrQkClanR6gUCjMDlmgcC47qdsQcCobL7FgK82uKDBwKxvorgBQKO6OWbBALZ5NyEAQLXvdCtCQKWodHqBQLtv+WaBwLEup2xBwLg6vsWAoWF44MHAtboiuAFArfp5ZsEAoLm3IQBApDo0K0JAtvL0eoFApbB5ZoHAu27nbEHAoej+xYCvsrigwcCr66K4AUC0OflmwQCm+TchAEC2a3QrQkClJHR6gUCr7/lmgcChrqdsQcChqv7FgK3wuKDBwK0porgBQKx5+WbBAL849yEAQLapdCtCQKZidHqBQKQv+WaBwLnuZ2xB/EqsXlB0EpTCEmhp2vPBqGnAqJX',
+        '__VIEWSTATEGENERATOR': '43757CAF'
+    }
 
 
 @pytest.fixture
@@ -64,7 +127,7 @@ def sample_config_data():
     """示例配置数据"""
     return {
         'cookies': 'test_cookie_string',
-        'target_courses': ['高等数学', '大学物理'],
+        'target_courses': ['数学文化漫谈'],
         'semester': '2025/2026下',
         'request_interval': 1.0,
         'timeout': 30
