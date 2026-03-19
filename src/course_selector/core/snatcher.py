@@ -13,6 +13,7 @@ import ntplib
 import socket
 
 from ..utils.logger import get_logger
+from .matcher import CourseMatcher
 
 
 @dataclass
@@ -156,6 +157,7 @@ class CourseSnatcher:
         self.selector = course_selector
         self.logger = get_logger(__name__)
         self.time_sync = TimeSync()
+        self.matcher = CourseMatcher()  # 智能课程匹配器
         self._stop_flag = False
         self._snatch_thread: Optional[threading.Thread] = None
 
@@ -300,15 +302,20 @@ class CourseSnatcher:
                 if courses:
                     self.logger.info(f"检测到 {len(courses)} 门课程!")
 
-                    # 查找目标课程
-                    target_course = None
-                    for course in courses:
-                        if course_keyword.lower() in course.name.lower():
-                            target_course = course
-                            break
+                    # 使用智能匹配器查找目标课程
+                    match_result = self.matcher.match_best(
+                        course_keyword,
+                        courses,
+                        auto_confirm_threshold=70.0,  # 抢课模式降低自动确认阈值
+                        confirm_threshold=30.0
+                    )
 
-                    if target_course:
-                        self.logger.info(f"找到目标课程: {target_course.name}")
+                    if match_result and match_result.course:
+                        target_course = match_result.course
+                        self.logger.info(f"匹配到课程: {target_course.name}")
+                        self.logger.info(f"  匹配分数: {match_result.score:.1f}")
+                        self.logger.info(f"  置信度: {match_result.confidence}")
+                        self.logger.info(f"  匹配字段: {', '.join(match_result.matched_fields)}")
                         self.logger.info(f"立即报名...")
 
                         # 立即报名

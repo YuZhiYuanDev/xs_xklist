@@ -192,35 +192,9 @@ def main() -> int:
 
         return 0 if result.success else 1
 
-    # 普通模式：获取并显示课程列表
-    selector.display_courses()
-
-    # 自动报名
-    if config.target_courses:
-        print(f"\n开始自动报名课程: {', '.join(config.target_courses)}")
-        results = selector.auto_enroll_by_keywords(config.target_courses)
-
-        # 显示结果
-        print("\n" + "=" * 80)
-        print("报名结果")
-        print("=" * 80)
-        print(f"成功: {len(results.success)} 门")
-        for course in results.success:
-            print(f"  [成功] {course}")
-
-        print(f"\n失败: {len(results.failed)} 门")
-        for course in results.failed:
-            print(f"  [失败] {course}")
-
-        print(f"\n未找到: {len(results.not_found)} 门")
-        for course in results.not_found:
-            print(f"  [未找到] {course}")
-        print("=" * 80)
-    else:
-        print("\n未指定要报名的课程，程序结束。")
-
+    print("\n程序仅提供自动抢课功能。")
+    print('使用方式：python -m course_selector --snatch "课程名称" --time "YYYY-MM-DD HH:MM:SS"')
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

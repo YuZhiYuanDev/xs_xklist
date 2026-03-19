@@ -3,6 +3,7 @@
 from .models import Course, EnrollmentResult, EnrollmentSummary, EnrollmentStatus
 from .selector import CourseSelector
 from .snatcher import CourseSnatcher, SnatchResult, TimeSync
+from .matcher import CourseMatcher, MatchResult
 
 __all__ = [
     "Course",
@@ -13,4 +14,6 @@ __all__ = [
     "CourseSnatcher",
     "SnatchResult",
     "TimeSync",
+    "CourseMatcher",
+    "MatchResult",
 ]
