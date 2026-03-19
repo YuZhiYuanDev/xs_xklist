@@ -19,13 +19,11 @@ class AppConfig:
 
     Attributes:
         cookies: Cookie字符串
-        target_courses: 目标课程列表
         semester: 学期
         request_interval: 请求间隔（秒）
         timeout: 请求超时时间（秒）
     """
     cookies: str = ""
-    target_courses: list[str] = field(default_factory=list)
     semester: str = "2025/2026下"
     request_interval: float = 1.0
     timeout: int = 30
@@ -71,7 +69,6 @@ class ConfigManager:
 
             self._config = AppConfig(
                 cookies=data.get('cookies', ''),
-                target_courses=data.get('target_courses', []),
                 semester=data.get('semester', '2025/2026下'),
                 request_interval=data.get('request_interval', 1.0),
                 timeout=data.get('timeout', 30)

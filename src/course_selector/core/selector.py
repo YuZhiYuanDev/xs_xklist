@@ -4,10 +4,9 @@
 协调HTTP、Parser模块完成选课功能
 """
 
-import time
 from typing import Optional
 
-from .models import Course, EnrollmentResult, EnrollmentSummary, EnrollmentStatus
+from .models import Course, EnrollmentResult, EnrollmentStatus
 from ..http.client import HttpClient
 from ..parser.html_parser import HtmlParser
 from ..utils.logger import get_logger
@@ -202,75 +201,3 @@ class CourseSelector:
                 message=str(e)
             )
 
-    def auto_enroll_by_keywords(
-        self,
-        keywords: list[str],
-        interval: float = 1.0
-    ) -> EnrollmentSummary:
-        """
-        根据关键词自动报名
-
-        Args:
-            keywords: 关键词列表
-            interval: 请求间隔（秒）
-
-        Returns:
-            报名结果汇总
-        """
-        if not self._courses:
-            self.get_course_list()
-
-        summary = EnrollmentSummary()
-
-        for keyword in keywords:
-            # 查找匹配的课程
-            matched_courses = [
-                c for c in self._courses
-                if keyword.lower() in c.name.lower()
-            ]
-
-            if not matched_courses:
-                self.logger.warning(f"未找到包含关键词 '{keyword}' 的课程")
-                summary.not_found.append(keyword)
-                continue
-
-            # 报名第一个匹配的课程
-            course = matched_courses[0]
-            self.logger.info(f"找到匹配课程: {course.name} (ID: {course.id})")
-
-            result = self.enroll_course(course.id)
-
-            if result.is_success():
-                summary.success.append(course.name)
-            else:
-                summary.failed.append(course.name)
-
-            # 等待间隔
-            time.sleep(interval)
-
-        return summary
-
-    def display_courses(self) -> None:
-        """显示课程列表"""
-        if not self._courses:
-            self.get_course_list()
-
-        print("\n" + "=" * 80)
-        print(f"可选课程列表 (共 {len(self._courses)} 门)")
-        print("=" * 80)
-
-        for i, course in enumerate(self._courses, 1):
-            print(f"\n[{i}] ID: {course.id}")
-            print(f"    课程名称: {course.name}")
-            print(f"    教学班: {course.class_name}")
-            print(f"    类别: {course.category}")
-            print(f"    教师: {course.teacher}")
-            print(f"    学分: {course.credit}")
-            print(f"    上课时间: {course.schedule}")
-            print(f"    容量: {course.capacity} | 已选: {course.enrolled} | 剩余: {course.remaining}")
-
-            # 每两门课程之间添加分隔线
-            if i < len(self._courses):
-                print("-" * 80)
-
-        print("\n" + "=" * 80)
