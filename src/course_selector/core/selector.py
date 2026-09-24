@@ -22,7 +22,8 @@ class CourseSelector:
     def __init__(
         self,
         cookies: str,
-        base_url: str = "https://xkglpt.zjedu.gov.cn"
+        base_url: str = "https://xkglpt.zjedu.gov.cn",
+        semester: str = "2025/2026下",
     ) -> None:
         """
         初始化选课控制器
@@ -32,6 +33,7 @@ class CourseSelector:
             base_url: 基础URL
         """
         self.base_url = base_url
+        self.semester = semester
         self.logger = get_logger(__name__)
 
         # 初始化依赖模块
@@ -80,15 +82,15 @@ class CourseSelector:
             post_data = self._form_fields.copy()
 
             # 添加查询参数
-            post_data['ctl00$ContentPlaceHolder1$ddlXNXQ'] = '2025/2026下'  # 学年学期
-            post_data['ctl00$ContentPlaceHolder1$ddlKCLX'] = ''  # 课程类型
-            post_data['ctl00$ContentPlaceHolder1$ddlXQJ'] = ''  # 周几
-            post_data['ctl00$ContentPlaceHolder1$ddlJC'] = ''  # 节次
-            post_data['ctl00$ContentPlaceHolder1$btnQuery'] = '查询'  # 查询按钮
+            post_data["ctl00$ContentPlaceHolder1$ddlXNXQ"] = self.semester  # 学年学期
+            post_data["ctl00$ContentPlaceHolder1$ddlKCLX"] = ""  # 课程类型
+            post_data["ctl00$ContentPlaceHolder1$ddlXQJ"] = ""  # 周几
+            post_data["ctl00$ContentPlaceHolder1$ddlJC"] = ""  # 节次
+            post_data["ctl00$ContentPlaceHolder1$btnQuery"] = "查询"  # 查询按钮
 
             # 清空事件参数
-            post_data['__EVENTTARGET'] = ''
-            post_data['__EVENTARGUMENT'] = ''
+            post_data["__EVENTTARGET"] = ""
+            post_data["__EVENTARGUMENT"] = ""
 
             self.logger.info("发送POST查询请求...")
             post_response = self.http_client.post(url, data=post_data)
@@ -107,6 +109,7 @@ class CourseSelector:
         except Exception as e:
             self.logger.error(f"获取课程列表时发生错误: {e}")
             import traceback
+
             traceback.print_exc()
             return []
 
@@ -128,7 +131,7 @@ class CourseSelector:
                 course_id=course_id,
                 course_name="",
                 status=EnrollmentStatus.FAILED,
-                message="课程未找到"
+                message="课程未找到",
             )
 
         # 检查是否有报名按钮信息
@@ -138,7 +141,7 @@ class CourseSelector:
                 course_id=course_id,
                 course_name=course.name,
                 status=EnrollmentStatus.FAILED,
-                message="未找到报名按钮"
+                message="未找到报名按钮",
             )
 
         try:
@@ -146,14 +149,12 @@ class CourseSelector:
             enroll_data = self._form_fields.copy()
 
             # 设置事件参数
-            enroll_data['__EVENTTARGET'] = course.enroll_event_target
-            enroll_data['__EVENTARGUMENT'] = course.enroll_event_argument
+            enroll_data["__EVENTTARGET"] = course.enroll_event_target
+            enroll_data["__EVENTARGUMENT"] = course.enroll_event_argument
 
             url = "/XS/xs_xklist.aspx"
 
-            self.logger.info(
-                f"正在报名课程: {course.name} (ID: {course_id})"
-            )
+            self.logger.info(f"正在报名课程: {course.name} (ID: {course_id})")
             self.logger.info(
                 f"使用 EventTarget: {course.enroll_event_target}, "
                 f"EventArgument: {course.enroll_event_argument}"
@@ -167,14 +168,12 @@ class CourseSelector:
                     course_id=course_id,
                     course_name=course.name,
                     status=EnrollmentStatus.FAILED,
-                    message=f"HTTP错误: {response.status_code}"
+                    message=f"HTTP错误: {response.status_code}",
                 )
 
             # 检查结果（传递课程名称进行更精确的验证）
             status = self.parser.check_enrollment_result(
-                response.text, 
-                course_id,
-                course.name
+                response.text, course_id, course.name
             )
 
             # 更新表单字段
@@ -187,17 +186,17 @@ class CourseSelector:
                 course_id=course_id,
                 course_name=course.name,
                 status=status,
-                message=message
+                message=message,
             )
 
         except Exception as e:
             self.logger.error(f"报名课程 {course_id} 时发生错误: {e}")
             import traceback
+
             traceback.print_exc()
             return EnrollmentResult(
                 course_id=course_id,
                 course_name=course.name,
                 status=EnrollmentStatus.FAILED,
-                message=str(e)
+                message=str(e),
             )
-

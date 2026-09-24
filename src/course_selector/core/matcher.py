@@ -24,6 +24,7 @@ class MatchResult:
         confidence: 置信度 (high/medium/low)
         matched_fields: 匹配到的字段列表
     """
+
     course: Course
     score: float
     confidence: str
@@ -41,14 +42,11 @@ class CourseMatcher:
     4. 多层次匹配策略
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.logger = get_logger(__name__)
 
     def match(
-        self,
-        query: str,
-        courses: list[Course],
-        threshold: float = 15.0
+        self, query: str, courses: list[Course], threshold: float = 15.0
     ) -> list[MatchResult]:
         """
         匹配课程
@@ -66,6 +64,9 @@ class CourseMatcher:
 
         # 预处理查询
         query_normalized = self._normalize_text(query)
+        if not query_normalized:
+            self.logger.warning("课程查询关键词不能为空")
+            return []
 
         self.logger.debug(f"查询: '{query}'")
         self.logger.debug(f"标准化: '{query_normalized}'")
@@ -87,7 +88,7 @@ class CourseMatcher:
         query: str,
         courses: list[Course],
         auto_confirm_threshold: float = 80.0,
-        confirm_threshold: float = 50.0
+        confirm_threshold: float = 50.0,
     ) -> Optional[MatchResult]:
         """
         匹配最佳课程
@@ -111,22 +112,25 @@ class CourseMatcher:
         # 高置信度：自动确认
         if best.score >= auto_confirm_threshold:
             best.confidence = "high"
-            self.logger.info(f"高置信度匹配: {best.course.name} (分数: {best.score:.1f})")
+            self.logger.info(
+                f"高置信度匹配: {best.course.name} (分数: {best.score:.1f})"
+            )
         # 中置信度：需要确认
         elif best.score >= confirm_threshold:
             best.confidence = "medium"
-            self.logger.info(f"中置信度匹配: {best.course.name} (分数: {best.score:.1f})")
+            self.logger.info(
+                f"中置信度匹配: {best.course.name} (分数: {best.score:.1f})"
+            )
         else:
             best.confidence = "low"
-            self.logger.info(f"低置信度匹配: {best.course.name} (分数: {best.score:.1f})")
+            self.logger.info(
+                f"低置信度匹配: {best.course.name} (分数: {best.score:.1f})"
+            )
 
         return best
 
     def _match_course(
-        self,
-        query: str,
-        query_normalized: str,
-        course: Course
+        self, query: str, query_normalized: str, course: Course
     ) -> Optional[MatchResult]:
         """
         匹配单门课程
@@ -160,7 +164,7 @@ class CourseMatcher:
             if query_normalized == field_normalized:
                 score = 100.0
                 matched_fields.append(f"{field_name}(精确)")
-                best_score = max(best_score, score)
+                best_score = max(best_score, score * (weight / 3.0))
                 continue
 
             # 2. 包含匹配
@@ -168,7 +172,7 @@ class CourseMatcher:
                 ratio = len(query_normalized) / len(field_normalized)
                 score = 60 + ratio * 40  # 60-100分
                 matched_fields.append(field_name)
-                best_score = max(best_score, score)
+                best_score = max(best_score, score * (weight / 3.0))
                 continue
 
             # 3. 反向包含
@@ -176,7 +180,7 @@ class CourseMatcher:
                 ratio = len(field_normalized) / len(query_normalized)
                 score = 40 + ratio * 40  # 40-80分
                 matched_fields.append(field_name)
-                best_score = max(best_score, score)
+                best_score = max(best_score, score * (weight / 3.0))
                 continue
 
             # 4. 模糊匹配（编辑距离）
@@ -185,7 +189,11 @@ class CourseMatcher:
                 score = similarity * 60  # 30-60分
                 if similarity > 0.7:
                     matched_fields.append(f"{field_name}(模糊)")
-                best_score = max(best_score, score)
+
+            # 课程名称保留完整分值，其他字段按权重降分。这样可以用
+            # 教师、时间等信息辅助排序，但不会单独触发高置信度报名。
+            weighted_score = score * (weight / 3.0)
+            best_score = max(best_score, weighted_score)
 
         # 如果没有匹配，返回None
         if best_score < 10:
@@ -195,7 +203,7 @@ class CourseMatcher:
             course=course,
             score=best_score,
             confidence="unknown",
-            matched_fields=matched_fields
+            matched_fields=matched_fields,
         )
 
     def _normalize_text(self, text: str) -> str:
@@ -217,7 +225,7 @@ class CourseMatcher:
         text = text.replace("【", "[").replace("】", "]")
 
         # 去除空格
-        text = re.sub(r'\s+', '', text)
+        text = re.sub(r"\s+", "", text)
 
         return text
 

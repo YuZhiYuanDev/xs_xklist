@@ -4,16 +4,19 @@
 实现精确时间同步和快速抢课功能
 """
 
-import time
-import threading
-from datetime import datetime, timedelta
-from typing import Optional, Callable
-from dataclasses import dataclass
-import ntplib
 import socket
+import threading
+import time
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+from typing import Callable, Optional
+
+import ntplib
 
 from ..utils.logger import get_logger
 from .matcher import CourseMatcher
+from .models import Course
+from .selector import CourseSelector
 
 
 @dataclass
@@ -28,6 +31,7 @@ class SnatchResult:
         attempt_count: 尝试次数
         time_used: 耗时（秒）
     """
+
     success: bool
     course_name: str = ""
     message: str = ""
@@ -44,11 +48,11 @@ class TimeSync:
 
     # NTP服务器列表（按优先级排序）
     NTP_SERVERS = [
-        "ntp.aliyun.com",       # 阿里云NTP
-        "ntp.tencent.com",      # 腾讯云NTP
-        "cn.ntp.org.cn",        # 中国NTP
-        "time.windows.com",     # Windows时间服务器
-        "pool.ntp.org",         # NTP池
+        "ntp.aliyun.com",  # 阿里云NTP
+        "ntp.tencent.com",  # 腾讯云NTP
+        "cn.ntp.org.cn",  # 中国NTP
+        "time.windows.com",  # Windows时间服务器
+        "pool.ntp.org",  # NTP池
     ]
 
     def __init__(self, timeout: float = 3.0):
@@ -85,8 +89,12 @@ class TimeSync:
                 local_time = datetime.now()
 
                 self.logger.info(f"时间同步成功!")
-                self.logger.info(f"  网络时间: {network_time.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]}")
-                self.logger.info(f"  本地时间: {local_time.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]}")
+                self.logger.info(
+                    f"  网络时间: {network_time.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]}"
+                )
+                self.logger.info(
+                    f"  本地时间: {local_time.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]}"
+                )
                 self.logger.info(f"  偏移量: {self._offset * 1000:.2f} 毫秒")
 
                 return True
@@ -147,14 +155,23 @@ class CourseSnatcher:
     实现精确时间同步和快速抢课功能
     """
 
-    def __init__(self, course_selector):
+    def __init__(
+        self,
+        course_selector: CourseSelector,
+        semester: Optional[str] = None,
+        request_interval: float = 1.0,
+    ) -> None:
         """
         初始化抢课器
 
         Args:
             course_selector: CourseSelector实例
+            semester: 学年学期，默认使用选课器配置
+            request_interval: 两次课程查询之间的最小间隔（秒）
         """
         self.selector = course_selector
+        self.semester = semester or course_selector.semester
+        self.request_interval = max(0.05, request_interval)
         self.logger = get_logger(__name__)
         self.time_sync = TimeSync()
         self.matcher = CourseMatcher()  # 智能课程匹配器
@@ -183,7 +200,7 @@ class CourseSnatcher:
         self,
         target_time: datetime,
         advance_seconds: float = 15.0,
-        callback: Optional[Callable[[datetime, float], None]] = None
+        callback: Optional[Callable[[datetime, float], None]] = None,
     ) -> bool:
         """
         等待到指定时间
@@ -229,7 +246,7 @@ class CourseSnatcher:
         course_keyword: str,
         start_time: datetime,
         advance_seconds: float = 15.0,
-        max_attempts: int = 1000
+        max_attempts: int = 1000,
     ) -> SnatchResult:
         """
         快速抢课
@@ -246,6 +263,13 @@ class CourseSnatcher:
         self._stop_flag = False
         start_timestamp = time.time()
 
+        if not course_keyword.strip():
+            return SnatchResult(
+                success=False,
+                message="课程关键词不能为空",
+                time_used=time.time() - start_timestamp,
+            )
+
         # 1. 同步时间
         self.logger.info("=" * 60)
         self.logger.info("开始抢课流程")
@@ -260,12 +284,13 @@ class CourseSnatcher:
         self.logger.info("正在预加载表单字段...")
         self._preload_form_fields()
 
-        # 3. 等待到开始时间
+        # 3. 等待到提前检测时间
         self.logger.info(f"目标抢课时间: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
         self.logger.info(f"将在开始前 {advance_seconds} 秒开始快速检测...")
 
         # 等待回调函数
-        def wait_callback(current: datetime, remaining: float):
+        def wait_callback(current: datetime, remaining: float) -> None:
+            remaining = (start_time - current).total_seconds()
             if remaining > 60:
                 if int(remaining) % 60 == 0:
                     self.logger.info(f"距离开始还有 {int(remaining)} 秒...")
@@ -275,13 +300,28 @@ class CourseSnatcher:
             elif remaining > 0:
                 self.logger.info(f"即将开始: {remaining:.2f} 秒")
 
-        # 等待到开始时间
+        detection_time = start_time - timedelta(seconds=max(0.0, advance_seconds))
+
+        # 等待到提前检测时间
         self.logger.info("等待中...")
-        if not self.wait_until(start_time, advance_seconds, wait_callback):
+        if not self.wait_until(detection_time, advance_seconds, wait_callback):
             return SnatchResult(
                 success=False,
                 message="抢课已取消",
-                time_used=time.time() - start_timestamp
+                time_used=time.time() - start_timestamp,
+            )
+
+        # 提前检测阶段只预热课程和表单状态，不会在正式时间前提交报名。
+        while not self._stop_flag and self.get_precise_time() < start_time:
+            self._quick_check_courses()
+            remaining = (start_time - self.get_precise_time()).total_seconds()
+            time.sleep(min(self.request_interval, max(0.01, remaining)))
+
+        if self._stop_flag:
+            return SnatchResult(
+                success=False,
+                message="抢课已取消",
+                time_used=time.time() - start_timestamp,
             )
 
         # 4. 开始快速抢课
@@ -306,17 +346,32 @@ class CourseSnatcher:
                     match_result = self.matcher.match_best(
                         course_keyword,
                         courses,
-                        auto_confirm_threshold=70.0,  # 抢课模式降低自动确认阈值
-                        confirm_threshold=30.0
+                        auto_confirm_threshold=80.0,
+                        confirm_threshold=50.0,
                     )
 
-                    if match_result and match_result.course:
+                    if match_result and match_result.confidence == "high":
                         target_course = match_result.course
                         self.logger.info(f"匹配到课程: {target_course.name}")
                         self.logger.info(f"  匹配分数: {match_result.score:.1f}")
                         self.logger.info(f"  置信度: {match_result.confidence}")
-                        self.logger.info(f"  匹配字段: {', '.join(match_result.matched_fields)}")
-                        self.logger.info(f"立即报名...")
+                        self.logger.info(
+                            f"  匹配字段: {', '.join(match_result.matched_fields)}"
+                        )
+                        if target_course.remaining:
+                            try:
+                                if int(target_course.remaining) <= 0:
+                                    self.logger.info(
+                                        f"课程 {target_course.name} 已满，继续检测..."
+                                    )
+                                    time.sleep(self.request_interval)
+                                    continue
+                            except ValueError:
+                                self.logger.debug(
+                                    "剩余名额不是数字，将由服务器判断是否可报"
+                                )
+
+                        self.logger.info("立即报名...")
 
                         # 立即报名
                         result = self.selector.enroll_course(target_course.id)
@@ -330,13 +385,18 @@ class CourseSnatcher:
                                 course_name=target_course.name,
                                 message="抢课成功",
                                 attempt_count=attempt_count,
-                                time_used=time_used
+                                time_used=time_used,
                             )
                         else:
                             self.logger.warning(f"报名失败: {result.message}")
                             # 继续尝试
+                    elif match_result:
+                        self.logger.warning(
+                            f"最佳匹配 {match_result.course.name} 分数仅为 "
+                            f"{match_result.score:.1f}，为避免误抢已跳过"
+                        )
                     else:
-                        self.logger.debug(f"未找到目标课程，继续检测...")
+                        self.logger.debug("未找到目标课程，继续检测...")
                 else:
                     # 每100次尝试输出一次
                     if attempt_count % 100 == 0:
@@ -347,9 +407,12 @@ class CourseSnatcher:
                     self._preload_form_fields()
                     last_form_update = time.time()
 
+                time.sleep(self.request_interval)
+
             except Exception as e:
-                self.logger.debug(f"尝试 {attempt_count} 出错: {e}")
+                self.logger.warning(f"尝试 {attempt_count} 出错: {e}", exc_info=True)
                 # 出错不停止，继续尝试
+                time.sleep(self.request_interval)
 
         time_used = time.time() - start_timestamp
         return SnatchResult(
@@ -357,7 +420,7 @@ class CourseSnatcher:
             course_name="",
             message=f"达到最大尝试次数 {max_attempts}，抢课失败",
             attempt_count=attempt_count,
-            time_used=time_used
+            time_used=time_used,
         )
 
     def _preload_form_fields(self) -> None:
@@ -366,12 +429,16 @@ class CourseSnatcher:
             url = "/XS/xs_xklist.aspx"
             response = self.selector.http_client.get(url)
             if response.success:
-                self.selector._form_fields = self.selector.parser.parse_form_fields(response.text)
-                self.logger.debug(f"预加载了 {len(self.selector._form_fields)} 个表单字段")
+                self.selector._form_fields = self.selector.parser.parse_form_fields(
+                    response.text
+                )
+                self.logger.debug(
+                    f"预加载了 {len(self.selector._form_fields)} 个表单字段"
+                )
         except Exception as e:
             self.logger.warning(f"预加载表单字段失败: {e}")
 
-    def _quick_check_courses(self) -> list:
+    def _quick_check_courses(self) -> list[Course]:
         """
         快速检测课程列表
 
@@ -385,25 +452,29 @@ class CourseSnatcher:
             post_data = self.selector._form_fields.copy()
 
             # 添加查询参数
-            post_data['ctl00$ContentPlaceHolder1$ddlXNXQ'] = '2025/2026下'
-            post_data['ctl00$ContentPlaceHolder1$ddlKCLX'] = ''
-            post_data['ctl00$ContentPlaceHolder1$ddlXQJ'] = ''
-            post_data['ctl00$ContentPlaceHolder1$ddlJC'] = ''
-            post_data['ctl00$ContentPlaceHolder1$btnQuery'] = '查询'
-            post_data['__EVENTTARGET'] = ''
-            post_data['__EVENTARGUMENT'] = ''
+            post_data["ctl00$ContentPlaceHolder1$ddlXNXQ"] = self.semester
+            post_data["ctl00$ContentPlaceHolder1$ddlKCLX"] = ""
+            post_data["ctl00$ContentPlaceHolder1$ddlXQJ"] = ""
+            post_data["ctl00$ContentPlaceHolder1$ddlJC"] = ""
+            post_data["ctl00$ContentPlaceHolder1$btnQuery"] = "查询"
+            post_data["__EVENTTARGET"] = ""
+            post_data["__EVENTARGUMENT"] = ""
 
             response = self.selector.http_client.post(url, data=post_data)
 
             if response.success:
                 # 更新表单字段
-                self.selector._form_fields = self.selector.parser.parse_form_fields(response.text)
+                self.selector._form_fields = self.selector.parser.parse_form_fields(
+                    response.text
+                )
                 # 解析课程列表
                 courses = self.selector.parser.parse_course_list(response.text)
+                self.selector._courses = courses
                 return courses
+            self.logger.warning(f"课程查询失败，HTTP状态码: {response.status_code}")
 
-        except Exception:
-            pass
+        except Exception as e:
+            self.logger.warning(f"快速检测课程失败: {e}", exc_info=True)
 
         return []
 

@@ -20,7 +20,7 @@ class HtmlParser:
     """
 
     # 课程链接的正则模式
-    COURSE_LINK_PATTERN = re.compile(r'view_kc\((\d+)\)')
+    COURSE_LINK_PATTERN = re.compile(r"view_kc\((\d+)\)")
 
     # 报名按钮的正则模式（ASP.NET __doPostBack）
     ENROLL_BUTTON_PATTERN = re.compile(r"__doPostBack\('([^']+)',?'([^']*)'\)")
@@ -39,14 +39,14 @@ class HtmlParser:
         Returns:
             字段名到值的映射字典
         """
-        soup = BeautifulSoup(html, 'html.parser')
+        soup = BeautifulSoup(html, "html.parser")
         form_fields = {}
 
         # 提取所有隐藏字段
-        hidden_fields = soup.find_all('input', {'type': 'hidden'})
+        hidden_fields = soup.find_all("input", {"type": "hidden"})
         for field in hidden_fields:
-            name = field.get('name')
-            value = field.get('value', '')
+            name = field.get("name")
+            value = field.get("value", "")
             if name:
                 form_fields[name] = value
 
@@ -63,14 +63,14 @@ class HtmlParser:
         Returns:
             课程列表
         """
-        soup = BeautifulSoup(html, 'html.parser')
+        soup = BeautifulSoup(html, "html.parser")
         courses = []
 
         # 先提取所有报名按钮
         enroll_buttons = self.parse_enroll_buttons(html)
 
         # 查找所有包含view_kc函数的链接
-        course_links = soup.find_all('a', onclick=self.COURSE_LINK_PATTERN)
+        course_links = soup.find_all("a", onclick=self.COURSE_LINK_PATTERN)
 
         for link in course_links:
             course = self._parse_course_link(link)
@@ -87,10 +87,7 @@ class HtmlParser:
         return courses
 
     def check_enrollment_result(
-        self,
-        html: str,
-        course_id: str,
-        course_name: str = ""
+        self, html: str, course_id: str, course_name: str = ""
     ) -> EnrollmentStatus:
         """
         检查报名结果
@@ -105,13 +102,15 @@ class HtmlParser:
         """
         # 检查已选课程列表
         enrolled_courses = self.parse_enrolled_courses(html)
-        
+
         # 如果提供了课程名称，检查是否在已选列表中
         if course_name:
             for enrolled in enrolled_courses:
                 # 检查课程名称是否匹配（支持部分匹配）
-                if course_name in enrolled or enrolled in course_name:
-                    self.logger.info(f"课程 {course_id} 报名成功: 已在已选列表中找到 '{enrolled}'")
+                if course_name.strip() and course_name.strip() in enrolled:
+                    self.logger.info(
+                        f"课程 {course_id} 报名成功: 已在已选列表中找到 '{enrolled}'"
+                    )
                     return EnrollmentStatus.SUCCESS
 
         # 未在已选列表中找到
@@ -128,14 +127,17 @@ class HtmlParser:
         Returns:
             已选课程名称列表
         """
-        soup = BeautifulSoup(html, 'html.parser')
+        soup = BeautifulSoup(html, "html.parser")
         enrolled_courses = []
 
         # 查找DataList1控件（已选课程列表）
-        datalist = soup.find('span', id='ctl00_ContentPlaceHolder1_DataList1')
+        datalist = soup.find("span", id="ctl00_ContentPlaceHolder1_DataList1")
         if datalist:
             # 查找所有Label控件
-            labels = datalist.find_all('span', id=re.compile(r'ctl00_ContentPlaceHolder1_DataList1_ctl\d+_Label1'))
+            labels = datalist.find_all(
+                "span",
+                id=re.compile(r"ctl00_ContentPlaceHolder1_DataList1_ctl\d+_Label1"),
+            )
             for label in labels:
                 course_text = label.get_text().strip()
                 if course_text:
@@ -143,7 +145,7 @@ class HtmlParser:
 
         if enrolled_courses:
             self.logger.info(f"找到 {len(enrolled_courses)} 门已选课程")
-        
+
         return enrolled_courses
 
     def parse_enroll_buttons(self, html: str) -> dict[str, tuple[str, str]]:
@@ -156,28 +158,28 @@ class HtmlParser:
         Returns:
             课程ID到(eventTarget, eventArgument)的映射
         """
-        soup = BeautifulSoup(html, 'html.parser')
+        soup = BeautifulSoup(html, "html.parser")
         enroll_buttons = {}
 
         # 查找所有包含__doPostBack的元素
         elements_with_postback = soup.find_all(
-            lambda tag: tag.has_attr('href') and '__doPostBack' in tag.get('href', '')
+            lambda tag: tag.has_attr("href") and "__doPostBack" in tag.get("href", "")
         )
 
         for element in elements_with_postback:
-            href = element.get('href', '')
+            href = element.get("href", "")
             match = self.ENROLL_BUTTON_PATTERN.search(href)
             if match:
                 event_target = match.group(1)
-                event_argument = match.group(2) if match.group(2) else ''
+                event_argument = match.group(2) if match.group(2) else ""
 
                 # 尝试从同一行提取课程ID
-                tr = element.find_parent('tr')
+                tr = element.find_parent("tr")
                 if tr:
                     # 查找课程链接
-                    course_link = tr.find('a', onclick=self.COURSE_LINK_PATTERN)
+                    course_link = tr.find("a", onclick=self.COURSE_LINK_PATTERN)
                     if course_link:
-                        onclick = course_link.get('onclick', '')
+                        onclick = course_link.get("onclick", "")
                         course_match = self.COURSE_LINK_PATTERN.search(onclick)
                         if course_match:
                             course_id = course_match.group(1)
@@ -200,7 +202,7 @@ class HtmlParser:
         Returns:
             Course对象，解析失败返回None
         """
-        onclick = link.get('onclick', '')
+        onclick = link.get("onclick", "")
         match = self.COURSE_LINK_PATTERN.search(onclick)
         if not match:
             return None
@@ -209,16 +211,16 @@ class HtmlParser:
         course_name = link.get_text().strip()
 
         # 查找同一行中的所有信息
-        parent_td = link.find_parent('td')
+        parent_td = link.find_parent("td")
         if not parent_td:
             return Course(id=course_id, name=course_name, onclick=onclick)
 
         # 查找同一行的所有td
-        tr = parent_td.find_parent('tr')
+        tr = parent_td.find_parent("tr")
         if not tr:
             return Course(id=course_id, name=course_name, onclick=onclick)
 
-        tds = tr.find_all('td')
+        tds = tr.find_all("td")
 
         # 根据TD数量判断结构
         # 普通课程: 10个TD
@@ -245,7 +247,7 @@ class HtmlParser:
                 capacity=tds[6].get_text().strip(),
                 enrolled=tds[7].get_text().strip(),
                 remaining=tds[8].get_text().strip(),
-                onclick=onclick
+                onclick=onclick,
             )
         elif len(tds) == 13:
             # TD[0-2]: 额外信息(时间范围等)
@@ -270,7 +272,7 @@ class HtmlParser:
                 capacity=tds[9].get_text().strip(),
                 enrolled=tds[10].get_text().strip(),
                 remaining=tds[11].get_text().strip(),
-                onclick=onclick
+                onclick=onclick,
             )
         else:
             # 未知结构，返回基本信息

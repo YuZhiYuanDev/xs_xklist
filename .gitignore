@@ -47,6 +47,8 @@ dmypy.json
 # Project specific
 cookies.txt
 config.json
+msedgedriver/
+se-metadata.json
 
 # OS
 .DS_Store

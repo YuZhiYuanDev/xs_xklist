@@ -23,7 +23,9 @@ class AppConfig:
         request_interval: 请求间隔（秒）
         timeout: 请求超时时间（秒）
     """
+
     cookies: str = ""
+    target_courses: list[str] = field(default_factory=list)
     semester: str = "2025/2026下"
     request_interval: float = 1.0
     timeout: int = 30
@@ -64,14 +66,15 @@ class ConfigManager:
             return self._config
 
         try:
-            with open(config_file, 'r', encoding='utf-8') as f:
+            with open(config_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
 
             self._config = AppConfig(
-                cookies=data.get('cookies', ''),
-                semester=data.get('semester', '2025/2026下'),
-                request_interval=data.get('request_interval', 1.0),
-                timeout=data.get('timeout', 30)
+                cookies=data.get("cookies", ""),
+                target_courses=data.get("target_courses", []),
+                semester=data.get("semester", "2025/2026下"),
+                request_interval=data.get("request_interval", 1.0),
+                timeout=data.get("timeout", 30),
             )
 
             self.logger.info(f"成功加载配置文件: {self.config_path}")
@@ -99,7 +102,7 @@ class ConfigManager:
             # 确保父目录存在
             config_file.parent.mkdir(parents=True, exist_ok=True)
 
-            with open(config_file, 'w', encoding='utf-8') as f:
+            with open(config_file, "w", encoding="utf-8") as f:
                 json.dump(asdict(config), f, indent=4, ensure_ascii=False)
 
             self.logger.info(f"配置已保存到: {self.config_path}")
@@ -130,4 +133,5 @@ class ConfigManager:
         """获取当前配置"""
         if self._config is None:
             self.load()
+        assert self._config is not None
         return self._config

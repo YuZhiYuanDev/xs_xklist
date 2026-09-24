@@ -29,54 +29,37 @@ def parse_args() -> argparse.Namespace:
     """
     parser = argparse.ArgumentParser(
         prog="course_selector",
-        description="浙江省普通高中选课管理系统 - 自动化选课程序"
+        description="浙江省普通高中选课管理系统 - 自动化选课程序",
     )
     parser.add_argument(
-        "--config", "-c",
+        "--config",
+        "-c",
         type=str,
         default=None,
-        help="配置文件路径 (默认: config.json)"
+        help="配置文件路径 (默认: config.json)",
     )
     parser.add_argument(
-        "--login", "-l",
-        action="store_true",
-        help="通过浏览器登录获取Cookie"
+        "--login", "-l", action="store_true", help="通过浏览器登录获取Cookie"
     )
     parser.add_argument(
-        "--timeout", "-t",
-        type=int,
-        default=300,
-        help="登录超时时间（秒），默认300秒"
+        "--timeout", "-t", type=int, default=300, help="登录超时时间（秒），默认300秒"
     )
     parser.add_argument(
-        "--snatch", "-s",
-        type=str,
-        default=None,
-        help="快速抢课模式，指定课程关键词"
+        "--snatch", "-s", type=str, default=None, help="快速抢课模式，指定课程关键词"
     )
     parser.add_argument(
         "--time",
         type=str,
         default=None,
-        help="抢课开始时间，格式: 'YYYY-MM-DD HH:MM:SS'"
+        help="抢课开始时间，格式: 'YYYY-MM-DD HH:MM:SS'",
     )
     parser.add_argument(
-        "--advance",
-        type=float,
-        default=15.0,
-        help="提前多少秒开始检测（默认15秒）"
+        "--advance", type=float, default=15.0, help="提前多少秒开始检测（默认15秒）"
     )
     parser.add_argument(
-        "--max-attempts",
-        type=int,
-        default=1000,
-        help="最大尝试次数（默认1000次）"
+        "--max-attempts", type=int, default=1000, help="最大尝试次数（默认1000次）"
     )
-    parser.add_argument(
-        "--verbose", "-v",
-        action="store_true",
-        help="显示详细日志"
-    )
+    parser.add_argument("--verbose", "-v", action="store_true", help="显示详细日志")
     return parser.parse_args()
 
 
@@ -113,22 +96,22 @@ def main() -> int:
         print("提示：请在弹出的浏览器中完成登录操作")
         print(f"超时时间: {args.timeout}秒\n")
 
-        result = browser_login(timeout=args.timeout)
+        login_result = browser_login(timeout=args.timeout)
 
-        if result.success:
-            config.cookies = result.cookies
+        if login_result.success:
+            config.cookies = login_result.cookies
             # 保存Cookie
             cookie_manager = CookieManager()
-            cookie_manager.save(result.cookies)
+            cookie_manager.save(login_result.cookies)
             print(f"\n登录成功！Cookie已保存到 cookies.txt 文件")
-            print(f"登录耗时: {result.login_time:.1f}秒\n")
+            print(f"登录耗时: {login_result.login_time:.1f}秒\n")
         else:
-            print(f"\n登录失败: {result.message}")
-            if result.error_code:
-                print(f"错误码: {result.error_code}")
+            print(f"\n登录失败: {login_result.message}")
+            if login_result.error_code:
+                print(f"错误码: {login_result.error_code}")
 
             # 如果是浏览器启动失败，提示手动输入
-            if result.error_code == "BROWSER_INIT_FAILED":
+            if login_result.error_code == "BROWSER_INIT_FAILED":
                 print("\n请手动输入Cookie (从浏览器开发者工具中复制):")
                 config.cookies = input("Cookie: ").strip()
                 if config.cookies:
@@ -142,13 +125,13 @@ def main() -> int:
         return 1
 
     # 创建选择器
-    selector = CourseSelector(config.cookies)
+    selector = CourseSelector(config.cookies, semester=config.semester)
 
     # 抢课模式
     if args.snatch:
         if not args.time:
             print("错误: 抢课模式需要指定 --time 参数")
-            print("示例: --snatch \"数学\" --time \"2025-01-15 12:00:00\"")
+            print('示例: --snatch "数学" --time "2025-01-15 12:00:00"')
             return 1
 
         try:
@@ -168,33 +151,40 @@ def main() -> int:
         print()
 
         # 创建抢课器
-        snatcher = CourseSnatcher(selector)
+        snatcher = CourseSnatcher(
+            selector,
+            semester=config.semester,
+            request_interval=config.request_interval,
+        )
 
         # 开始抢课
-        result = snatcher.snatch_course(
+        snatch_result = snatcher.snatch_course(
             course_keyword=args.snatch,
             start_time=start_time,
             advance_seconds=args.advance,
-            max_attempts=args.max_attempts
+            max_attempts=args.max_attempts,
         )
 
         # 显示结果
         print("\n" + "=" * 80)
         print("抢课结果")
         print("=" * 80)
-        if result.success:
-            print(f"[成功] {result.course_name}")
+        if snatch_result.success:
+            print(f"[成功] {snatch_result.course_name}")
         else:
-            print(f"[失败] {result.message}")
-        print(f"尝试次数: {result.attempt_count}")
-        print(f"耗时: {result.time_used:.2f} 秒")
+            print(f"[失败] {snatch_result.message}")
+        print(f"尝试次数: {snatch_result.attempt_count}")
+        print(f"耗时: {snatch_result.time_used:.2f} 秒")
         print("=" * 80)
 
-        return 0 if result.success else 1
+        return 0 if snatch_result.success else 1
 
     print("\n程序仅提供自动抢课功能。")
-    print('使用方式：python -m course_selector --snatch "课程名称" --time "YYYY-MM-DD HH:MM:SS"')
+    print(
+        '使用方式：python -m course_selector --snatch "课程名称" --time "YYYY-MM-DD HH:MM:SS"'
+    )
     return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())
