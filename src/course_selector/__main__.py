@@ -45,7 +45,11 @@ def parse_args() -> argparse.Namespace:
         "--timeout", "-t", type=int, default=300, help="登录超时时间（秒），默认300秒"
     )
     parser.add_argument(
-        "--snatch", "-s", type=str, default=None, help="快速抢课模式，指定课程关键词"
+        "--snatch",
+        "-s",
+        type=str,
+        default=None,
+        help="快速抢课模式，指定一个或多个关键词（空格/逗号分隔）",
     )
     parser.add_argument(
         "--time",

@@ -63,10 +63,11 @@ class CourseMatcher:
             return []
 
         # 预处理查询
-        query_normalized = self._normalize_text(query)
-        if not query_normalized:
+        keywords = self._split_keywords(query)
+        if not keywords:
             self.logger.warning("课程查询关键词不能为空")
             return []
+        query_normalized = self._normalize_text(keywords[0])
 
         self.logger.debug(f"查询: '{query}'")
         self.logger.debug(f"标准化: '{query_normalized}'")
@@ -74,7 +75,10 @@ class CourseMatcher:
         results = []
 
         for course in courses:
-            result = self._match_course(query, query_normalized, course)
+            if len(keywords) > 1:
+                result = self._match_course_keywords(keywords, course)
+            else:
+                result = self._match_course(query, query_normalized, course)
             if result and result.score >= threshold:
                 results.append(result)
 
@@ -205,6 +209,68 @@ class CourseMatcher:
             confidence="unknown",
             matched_fields=matched_fields,
         )
+
+    def _match_course_keywords(
+        self, keywords: list[str], course: Course
+    ) -> Optional[MatchResult]:
+        """将多个关键词分别匹配到课程的任意字段。
+
+        采用 AND 语义：每个关键词都必须至少命中一个字段。由于多个
+        独立线索同时命中已经能显著降低误抢风险，最终分数会根据
+        所有关键词的匹配强度综合计算。
+        """
+        fields = {
+            "name": course.name or "",
+            "teacher": course.teacher or "",
+            "schedule": course.schedule or "",
+            "category": course.category or "",
+            "class_name": course.class_name or "",
+        }
+        matched_fields: list[str] = []
+        keyword_scores: list[float] = []
+
+        for keyword in keywords:
+            keyword_normalized = self._normalize_text(keyword)
+            best_score = 0.0
+            best_field = ""
+
+            for field_name, field_text in fields.items():
+                field_normalized = self._normalize_text(field_text)
+                if not field_normalized:
+                    continue
+
+                if keyword_normalized == field_normalized:
+                    score = 100.0
+                elif keyword_normalized in field_normalized:
+                    score = 60 + len(keyword_normalized) / len(field_normalized) * 40
+                elif field_normalized in keyword_normalized:
+                    score = 40 + len(field_normalized) / len(keyword_normalized) * 40
+                else:
+                    similarity = self._similarity(keyword_normalized, field_normalized)
+                    score = similarity * 60 if similarity > 0.5 else 0.0
+
+                if score > best_score:
+                    best_score = score
+                    best_field = field_name
+
+            if best_score < 30.0:
+                return None
+
+            keyword_scores.append(best_score)
+            matched_fields.append(f"{keyword}→{best_field}")
+
+        average_score = sum(keyword_scores) / len(keyword_scores)
+        combined_score = 70.0 + average_score * 0.3
+        return MatchResult(
+            course=course,
+            score=combined_score,
+            confidence="unknown",
+            matched_fields=matched_fields,
+        )
+
+    def _split_keywords(self, query: str) -> list[str]:
+        """按空白或常见中英文分隔符拆分关键词。"""
+        return [part for part in re.split(r"[\s,，、;；]+", query.strip()) if part]
 
     def _normalize_text(self, text: str) -> str:
         """
